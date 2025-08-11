@@ -1,0 +1,61 @@
+import requests
+from bs4 import BeautifulSoup
+import smtplib
+from email.mime.text import MIMEText
+
+# EMAIL CONFIGURATION
+FROM_EMAIL = ""   # your email
+APP_PASSWORD = ""            # your Google App Password
+TO_EMAIL = ""               # receiver email
+THRESHOLD = 120000                              # USD target price
+
+# SCRAPER FUNCTION
+
+def get_btc_price():
+    url = "https://coinmarketcap.com/currencies/bitcoin/"
+    headers = {"User-Agent": "Mozilla/5.0"}
+    response = requests.get(url, headers=headers)
+    soup = BeautifulSoup(response.text, 'html.parser')
+
+    # Find price in the page meta tag
+    meta_tag = soup.find('meta', attrs={'name': 'description'})
+    if meta_tag:
+        description = meta_tag['content']
+        # Extract the price (usually something like "$113,456.78")
+        price_str = description.split("is")[1].split("USD")[0].strip().replace(",", "").replace("$", "")
+        return float(price_str)
+    else:
+        raise ValueError("Could not find BTC price in HTML")
+
+# ======================
+# EMAIL FUNCTION
+# ======================
+def send_email(subject, body, to_email):
+    msg = MIMEText(body)
+    msg["Subject"] = subject
+    msg["From"] = FROM_EMAIL
+    msg["To"] = to_email
+
+    with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
+        server.login(FROM_EMAIL, APP_PASSWORD)
+        server.sendmail(FROM_EMAIL, to_email, msg.as_string())
+
+# ======================
+# MAIN LOGIC
+# ======================
+try:
+    price = get_btc_price()
+    print(f"Current BTC Price: ${price}")
+
+    if price > THRESHOLD:
+        send_email(
+            "🚀 Bitcoin Price Alert",
+            f"Bitcoin price is now ${price} — time to trade!",
+            TO_EMAIL
+        )
+        print("Email alert sent!")
+    else:
+        print(f"Price below {THRESHOLD}, no alert sent.")
+
+except Exception as e:
+    print(f"Error: {e}")
